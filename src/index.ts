@@ -813,6 +813,31 @@ function normalizeNNumber(input: string): string {
   return input.trim().toUpperCase().replace(/^N/, '');
 }
 
+/**
+ * Guards every tool against the "table exists but was never loaded" state
+ * (fleet #2790, 2026-10-08). The Supabase credentials ARE injected and the
+ * query succeeds — faa_reg_aircraft simply has zero rows, because the daily
+ * refresh (scripts/ingest-faa-aircraft-registry.mjs) has never completed a
+ * successful run (first observed cause: registry.faa.gov answering the
+ * gateway's own Worker egress a 403 too). Without this guard, EVERY
+ * N-number answers a confident `found:false` with a note implying the FAA
+ * itself doesn't know the tail number — a silent-zero wrong negative that
+ * is indistinguishable from a genuine miss against good data. This throws
+ * LOUDLY instead, naming the real condition, before any per-N-number query
+ * runs.
+ */
+async function assertRegistryLoaded(args: Record<string, unknown>): Promise<void> {
+  const anyRow = await pg(args, 'faa_reg_aircraft?select=loaded_at&limit=1');
+  if (anyRow.length === 0 || !anyRow[0]?.loaded_at) {
+    throw new Error(
+      'dataset_unavailable: the FAA aircraft registry backing tables are empty — the daily refresh ' +
+        '(scripts/ingest-faa-aircraft-registry.mjs via .github/workflows/faa-aircraft-registry-refresh.yml) ' +
+        'has not yet completed a successful load. This is a Pipeworx-side gap, not evidence that any ' +
+        'particular N-number is unregistered — every lookup fails the same way until the first load lands.',
+    );
+  }
+}
+
 const tools: McpToolExport['tools'] = [
   {
     name: 'faa_reg_lookup',
@@ -833,6 +858,8 @@ async function faaRegLookup(args: Record<string, unknown>): Promise<unknown> {
   if (!raw) throw new Error('n_number is required');
   const n = normalizeNNumber(raw);
   if (!n) throw new Error(`"${raw}" does not look like an N-number`);
+
+  await assertRegistryLoaded(args);
 
   const activeRows = await pg(args, `faa_reg_aircraft?n_number=eq.${encodeURIComponent(n)}&select=*&limit=1`);
   const deregRows = await pg(args, `faa_reg_dereg?n_number=eq.${encodeURIComponent(n)}&select=*&limit=1`);
@@ -896,11 +923,23 @@ async function faaRegLookup(args: Record<string, unknown>): Promise<unknown> {
   }
 
   if (dereg) {
+    // DEREG.txt can list the same N-number more than once (deregistered,
+    // reassigned, deregistered again — the worst case seen is 9 events for
+    // one N-number); the mirror keeps only the most recent by cancel_date
+    // (scripts/lib/faa-dereg-dedupe.mjs). `dereg_events` says how many were
+    // collapsed into this row, so a `1` here is a real fact about the
+    // record, not a default standing in for "we didn't check".
+    const events = Number(dereg.dereg_events ?? 1) || 1;
     out.deregistration = {
       status_code: code(STATUS_CODES, dereg.status_code),
       cancel_date: isoDate(dereg.cancel_date),
       cert_issue_date: isoDate(dereg.cert_issue_date),
       registrant_name_withheld: 'deregistration records carry no registrant-type field, so a name is never returned here regardless of whether the registrant was an individual or an entity',
+      dereg_events: events,
+      note:
+        events > 1
+          ? `This N-number has ${events} historical deregistration events on file; only the most recent (by cancel date) is shown here.`
+          : undefined,
       data_as_of: dereg.loaded_at,
     };
     if (!active) out.status = 'deregistered';

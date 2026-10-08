@@ -1,6 +1,6 @@
 {
   "name": "@pipeworx/mcp-faa-aircraft-registry",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "FAA civil aircraft registry — resolve a US tail number (N-number) to its",
   "type": "module",
   "main": "src/index.ts",
@@ -26,7 +26,7 @@
     "@cloudflare/workers-types": "^4.20260405.1"
   },
   "pipeworx": {
-    "sourceHash": "v1-d7931fbb8b41ecc18b0d1f935e2cad17beceea6c1bdc248041206756c48c01f7",
-    "sourceCommit": "29efecb1e77577b1ce49e14f4fd7bbaee3e63885"
+    "sourceHash": "v1-47fb0f0d7f9c3772ba6dad578792eeeb6a73da6aa9fbdfcbbe0e526438b39317",
+    "sourceCommit": "e369dfedd93d5fcbf521281559a146302c14e1a0"
   }
 }

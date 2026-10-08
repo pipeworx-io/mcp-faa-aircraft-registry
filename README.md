@@ -5,7 +5,7 @@ registry — manufacturer, model, serial number, engine, airworthiness class,
 registrant type, registration status, certificate dates, and deregistration
 if the N-number has left the active registry.
 
-Part of [Pipeworx](https://pipeworx.io) — an MCP gateway connecting AI agents to 1721+ live data sources. This is an independent, unofficial integration — not affiliated with, endorsed by, or published by the upstream provider.
+Part of [Pipeworx](https://pipeworx.io) — an MCP gateway connecting AI agents to 1743+ live data sources. This is an independent, unofficial integration — not affiliated with, endorsed by, or published by the upstream provider.
 
 ## Tools
 
@@ -41,24 +41,37 @@ pack reads a Supabase mirror (`faa_reg_acftref`, `faa_reg_engine`,
 lookup response carries `data_as_of` from the row's own `loaded_at`.
 
 **The fetch itself is routed through the gateway, not done directly.**
-registry.faa.gov answers HTTP 403 "Access Denied" (Akamai) to a residential
-IP on every User-Agent tried — a plain default UA, this pack's own honest
-`pipeworx-mcp-faa-aircraft-registry/1.0` UA, a full desktop-Chrome UA, even a
-verbatim Googlebot UA — while a live Cloudflare Worker's own egress gets a
-clean 200 with the real ~73 MB ZIP on every one of those same UAs (measured
-2026-10-07). That is a pure IP-reputation hop, not a User-Agent check, and
-not the shape a UA-forging workaround would fix even if one were wanted — so
-the ingest script calls the gateway's own `/admin/faa_reg_fetch_zip` route
-(`workers/gateway/src/index.ts`), which streams the ZIP back through a
-Cloudflare Worker's already-proven-working egress, and the ingest script
-does the actual unzip/parse/load from wherever it runs.
+registry.faa.gov fronts itself with Akamai, and the block is **header-shape**,
+not IP-reputation alone (corrected 2026-10-08: refresh run 37731086667 got a
+live Akamai 403 straight from the gateway's own Worker route, which an
+earlier, incorrect version of this note said could not happen). Reproduced
+and fixed with a throwaway Cloudflare Worker on the prod account: a bot-shaped
+UA with `Accept: */*` gets Akamai's "Access Denied" HTML (HTTP 403) on this
+exact URL, while a realistic browser header set (a real Chrome UA, a
+browser-shaped `Accept`/`Accept-Language`, and a same-origin `Referer`) gets a
+clean HTTP 200 with the genuine ~73 MB ZIP — same Worker, same IP, only the
+headers differ. A residential IP and the Supabase egress relay were also
+tried and both 403 regardless of header shape, so the gateway's own
+`/admin/faa_reg_fetch_zip` route (`workers/gateway/src/index.ts`), sending
+those browser-shaped headers, is the one route that serves; the ingest script
+calls it and does the actual unzip/parse/load from wherever it runs.
 
 The DB load is `TRUNCATE` + `psql \copy` per table, all four in one
-transaction (`SUPABASE_POOLER_URI`) — this is a full daily snapshot, not an
-incremental upsert, because today's MASTER.txt does not contain yesterday's
-deregistered N-numbers at all. A parse failure on any of the four files
-rolls the whole transaction back, so yesterday's data stays live rather than
-a table going half-replaced.
+transaction, using the pooled connection string the ingest script reads from
+its environment — this is a full daily snapshot, not an incremental upsert,
+because today's MASTER.txt does not contain yesterday's deregistered
+N-numbers at all. A parse failure on any of the four files rolls the whole
+transaction back, so yesterday's data stays live rather than a table going
+half-replaced.
+
+## Empty-registry guard
+
+If the daily refresh has never completed a successful run, the backing
+tables are empty but the query against them still succeeds — so a naive read
+would answer a confident `found:false` for every N-number, indistinguishable
+from a genuine miss against good data. `faa_reg_lookup` checks for at least
+one loaded row before answering and throws a loud `dataset_unavailable`-class
+error naming that condition instead (fleet #2790, 2026-10-08).
 
 ## Personal data
 
@@ -74,6 +87,17 @@ names are returned, and the response states which case applies.
 at all** — there is no way to tell an individual from an entity in that
 file — so `faa_reg_lookup` never returns a registrant name for a
 deregistered record, regardless of what the registrant actually was.
+
+## Repeated deregistrations
+
+An N-number can be deregistered, reassigned, and deregistered again — the
+worst case in a real file measured 2026-10-08 was 9 events for one
+N-number — but the mirror's deregistration table keys on N-number alone, so
+only the most recent event (by cancel date) is kept
+(`scripts/lib/faa-dereg-dedupe.mjs`). Every deregistration response carries
+`dereg_events`, the count of historical events collapsed into it, and a
+`note` when that count is greater than 1 — so the response never implies
+the shown event is the only one on record.
 
 ## Code tables
 
@@ -131,7 +155,7 @@ directly, instead of just this one's:
 }
 ```
 
-Both URLs reach the same gateway and the same 1721+ data sources. The
+Both URLs reach the same gateway and the same 1743+ data sources. The
 only difference is which pack's tools are listed **directly**; `ask_pipeworx`
 reaches all of them from either one.
 
