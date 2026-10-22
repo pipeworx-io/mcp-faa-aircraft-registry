@@ -1,7 +1,7 @@
 {
   "name": "@pipeworx/mcp-faa-aircraft-registry",
-  "version": "0.1.1",
-  "description": "FAA civil aircraft registry — resolve a US tail number (N-number) to its",
+  "version": "0.1.2",
+  "description": "FAA civil aircraft registry — resolve a US tail number (N-number) to its aircraft, engine, registrant type and registration status (fleet #2790).",
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
@@ -26,7 +26,7 @@
     "@cloudflare/workers-types": "^4.20260405.1"
   },
   "pipeworx": {
-    "sourceHash": "v1-47fb0f0d7f9c3772ba6dad578792eeeb6a73da6aa9fbdfcbbe0e526438b39317",
-    "sourceCommit": "e369dfedd93d5fcbf521281559a146302c14e1a0"
+    "sourceHash": "v1-6f0927bb9e32ca82083424dd7ed854856b55dcbde82bacbcc11c7096162d9401",
+    "sourceCommit": "712a5e0171ea24483214329d0cd7efdfd9b80352"
   }
 }
