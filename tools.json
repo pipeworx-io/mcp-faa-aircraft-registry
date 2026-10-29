@@ -1,0 +1,18 @@
+[
+  {
+    "name": "faa_reg_lookup",
+    "description": "Look up a US aircraft tail number (N-number) in the FAA civil aircraft registry: manufacturer, model, serial number, engine, airworthiness class, registrant type, registration status, certificate issue/expiration dates, and deregistration if the N-number has left the active registry. Give the N-number with or without the leading \"N\" (\"N12345\" or \"12345\"). Registrant NAME is returned ONLY for non-individual registrant types (corporation, LLC, partnership, co-owned, government) — an individual registrant's name is personal data and is withheld, with the response saying so; a deregistered record never returns a registrant name at all, because the historical file carries no registrant-type column to tell individuals apart from entities. Sourced from the FAA's own daily bulk registry file (public domain), refreshed daily — every response carries data_as_of. Keyless.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "n_number": {
+          "type": "string",
+          "description": "FAA N-number, with or without the leading N, e.g. \"N12345\", \"12345\", \"N100\"."
+        }
+      },
+      "required": [
+        "n_number"
+      ]
+    }
+  }
+]

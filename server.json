@@ -3,7 +3,7 @@
   "name": "io.github.pipeworx-io/faa-aircraft-registry",
   "title": "Faa Aircraft Registry",
   "description": "FAA civil aircraft registry — resolve a US tail number (N-number) to its aircraft, engine…",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "websiteUrl": "https://pipeworx.io/packs/faa-aircraft-registry",
   "repository": {
     "url": "https://github.com/pipeworx-io/mcp-faa-aircraft-registry",
